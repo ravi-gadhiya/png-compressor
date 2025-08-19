@@ -23,143 +23,70 @@ export async function POST(request) {
     let compressedBuffer
     let outputFormat = originalFormat
     
-    if (compressionType === 'lossy') {
-      if (originalFormat === 'png') {
-        // Ultra-aggressive PNG compression
+    // KEEP ORIGINAL SIZE - NO RESIZING
+    if (originalFormat === 'png') {
+      if (compressionType === 'lossy' && !hasTransparency) {
+        // Non-transparent PNG: Smart color optimization WITHOUT quality loss
         compressedBuffer = await sharpInstance
-          .resize({ 
-            width: Math.min(metadata.width, 1200), // Smaller resize
-            height: Math.min(metadata.height, 1200),
-            fit: 'inside',
-            withoutEnlargement: true
-          })
           .png({ 
             compressionLevel: 9, // Maximum compression
             adaptiveFiltering: true,
-            quality: Math.max(quality - 40, 10), // Ultra-aggressive quality
-            palette: !hasTransparency, // Use palette when possible
-            colors: hasTransparency ? Math.max(16, quality) : Math.max(8, quality / 2), // Drastically reduce colors
-            dither: 1.0 // Add dithering for better quality at low colors
+            palette: true, // Convert to indexed colors for smaller size
+            quality: 100, // Keep visual quality
+            colors: Math.min(256, Math.max(128, (quality / 100) * 256)), // Smart color reduction
+            dither: 1.0, // Add dithering to maintain visual quality
+            effort: 10 // Maximum effort for best compression
           })
           .toBuffer()
-        outputFormat = 'png'
-        
       } else {
-        // Ultra-aggressive JPEG compression
-        compressedBuffer = await sharpInstance
-          .resize({ 
-            width: Math.min(metadata.width, 1200),
-            height: Math.min(metadata.height, 1200),
-            fit: 'inside',
-            withoutEnlargement: true
-          })
-          .jpeg({ 
-            quality: Math.max(quality - 40, 10), // Ultra-aggressive
-            progressive: true,
-            optimizeScans: true,
-            optimizeCoding: true,
-            mozjpeg: true,
-            trellisQuantisation: true,
-            overshootDeringing: true,
-            quantisationTable: 1, // Most aggressive quantization
-            chromaSubsampling: '4:2:0', // Maximum chroma subsampling
-            force: true
-          })
-          .toBuffer()
-        outputFormat = 'jpeg'
-      }
-      
-    } else if (compressionType === 'lossless') {
-      if (originalFormat === 'png') {
-        // Maximum lossless PNG compression
+        // Transparent PNG or lossless: Pure optimization
         compressedBuffer = await sharpInstance
           .png({ 
-            compressionLevel: 9,
+            compressionLevel: 9, // Maximum compression
             adaptiveFiltering: true,
-            quality: 100,
-            palette: !hasTransparency,
-            colors: hasTransparency ? 256 : 128,
-            effort: 10 // Maximum effort
+            palette: !hasTransparency, // Use palette only if no transparency
+            quality: 100, // Keep full quality
+            effort: 10 // Maximum compression effort
           })
           .toBuffer()
-        outputFormat = 'png'
-      } else {
-        // Lossless JPEG (minimal loss)
+      }
+      outputFormat = 'png'
+      
+    } else if (originalFormat === 'jpeg') {
+      if (compressionType === 'lossless') {
+        // True lossless: Only remove metadata and optimize encoding
         compressedBuffer = await sharpInstance
           .jpeg({ 
-            quality: 75, // Still some compression in "lossless"
+            quality: 95, // Minimal quality loss
+            progressive: true, // Better compression
+            optimizeScans: true, // Optimize scanning
+            optimizeCoding: true, // Optimize Huffman coding
+            mozjpeg: true, // Use mozjpeg for better compression
+            trellisQuantisation: false, // Keep quality high
+            overshootDeringing: false, // Keep quality high
+            force: false // Don't force if not beneficial
+          })
+          .toBuffer()
+      } else {
+        // Smart lossy: Good compression with minimal visual loss
+        compressedBuffer = await sharpInstance
+          .jpeg({ 
+            quality: Math.max(quality, 60), // Don't go below 60 for quality
             progressive: true,
             optimizeScans: true,
             optimizeCoding: true,
             mozjpeg: true,
-            trellisQuantisation: true
+            trellisQuantisation: true, // Better compression
+            overshootDeringing: true, // Reduce artifacts
+            quantisationTable: 0 // Use default quantization for quality
           })
           .toBuffer()
-        outputFormat = 'jpeg'
       }
+      outputFormat = 'jpeg'
       
-    } else { // custom - Maximum smart compression
-      if (originalFormat === 'png') {
-        if (hasTransparency) {
-          // Transparent PNG - maximum compression while preserving transparency
-          compressedBuffer = await sharpInstance
-            .resize({ 
-              width: Math.min(metadata.width, 1400),
-              height: Math.min(metadata.height, 1400),
-              fit: 'inside',
-              withoutEnlargement: true
-            })
-            .png({ 
-              compressionLevel: 9,
-              adaptiveFiltering: true,
-              quality: Math.max(quality - 20, 20),
-              palette: false,
-              colors: Math.max(32, quality),
-              dither: 0.5
-            })
-            .toBuffer()
-        } else {
-          // Non-transparent PNG - extreme compression
-          compressedBuffer = await sharpInstance
-            .resize({ 
-              width: Math.min(metadata.width, 1400),
-              height: Math.min(metadata.height, 1400),
-              fit: 'inside',
-              withoutEnlargement: true
-            })
-            .png({ 
-              compressionLevel: 9,
-              adaptiveFiltering: true,
-              quality: Math.max(quality - 25, 15),
-              palette: true,
-              colors: Math.max(16, quality / 2),
-              dither: 1.0
-            })
-            .toBuffer()
-        }
-        outputFormat = 'png'
-      } else {
-        // Smart JPEG compression
-        compressedBuffer = await sharpInstance
-          .resize({ 
-            width: Math.min(metadata.width, 1400),
-            height: Math.min(metadata.height, 1400),
-            fit: 'inside',
-            withoutEnlargement: true
-          })
-          .jpeg({ 
-            quality: Math.max(quality - 20, 20),
-            progressive: true,
-            optimizeScans: true,
-            mozjpeg: true,
-            trellisQuantisation: true,
-            overshootDeringing: true,
-            quantisationTable: 2,
-            chromaSubsampling: '4:2:0'
-          })
-          .toBuffer()
-        outputFormat = 'jpeg'
-      }
+    } else {
+      // Other formats: Just optimize without changing
+      compressedBuffer = buffer
     }
     
     const originalSize = buffer.length
