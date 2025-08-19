@@ -18,74 +18,91 @@ export async function POST(request) {
     const metadata = await sharpInstance.metadata()
     
     const hasTransparency = metadata.channels === 4 || metadata.hasAlpha
-    const isOriginallyPNG = metadata.format === 'png'
+    const originalFormat = metadata.format
     
     let compressedBuffer
-    let outputFormat = metadata.format
+    let outputFormat = originalFormat // Keep original format
     
     if (compressionType === 'lossy') {
-      if (isOriginallyPNG && hasTransparency) {
-        // For transparent PNGs: Use aggressive WebP compression (better than PNG)
-        compressedBuffer = await sharpInstance
-          .resize({ 
-            width: Math.min(metadata.width, 1600), // More aggressive resize
-            height: Math.min(metadata.height, 1600),
-            fit: 'inside',
-            withoutEnlargement: true
-          })
-          .webp({ 
-            quality: Math.max(quality - 20, 20), // Much more aggressive
-            effort: 6,
-            alphaQuality: Math.max(quality - 10, 50),
-            smartSubsample: true,
-            reductionEffort: 6
-          })
-          .toBuffer()
-        outputFormat = 'webp'
-        
+      if (originalFormat === 'png') {
+        if (hasTransparency) {
+          // Transparent PNG - keep as PNG but compress aggressively
+          compressedBuffer = await sharpInstance
+            .resize({ 
+              width: Math.min(metadata.width, 1600),
+              height: Math.min(metadata.height, 1600),
+              fit: 'inside',
+              withoutEnlargement: true
+            })
+            .png({ 
+              compressionLevel: 9,
+              adaptiveFiltering: true,
+              quality: Math.max(quality - 20, 20), // Aggressive quality reduction
+              palette: false, // Keep transparency
+              colors: Math.min(256, Math.max(32, quality * 3)) // Reduce colors based on quality
+            })
+            .toBuffer()
+          outputFormat = 'png'
+        } else {
+          // Non-transparent PNG - compress as PNG with palette
+          compressedBuffer = await sharpInstance
+            .resize({ 
+              width: Math.min(metadata.width, 1600),
+              height: Math.min(metadata.height, 1600),
+              fit: 'inside',
+              withoutEnlargement: true
+            })
+            .png({ 
+              compressionLevel: 9,
+              adaptiveFiltering: true,
+              quality: Math.max(quality - 15, 30),
+              palette: true, // Use palette for better compression
+              colors: Math.min(256, Math.max(64, quality * 2))
+            })
+            .toBuffer()
+          outputFormat = 'png'
+        }
       } else {
-        // For non-transparent images: Ultra-aggressive JPEG compression
+        // JPEG - ultra-aggressive compression
         compressedBuffer = await sharpInstance
           .resize({ 
-            width: Math.min(metadata.width, 1600), // Smaller max size
+            width: Math.min(metadata.width, 1600),
             height: Math.min(metadata.height, 1600),
             fit: 'inside',
             withoutEnlargement: true
           })
-          .flatten({ background: { r: 255, g: 255, b: 255 } })
           .jpeg({ 
-            quality: Math.max(quality - 30, 15), // Ultra-aggressive quality reduction
+            quality: Math.max(quality - 30, 15), // Very aggressive
             progressive: true,
             optimizeScans: true,
             optimizeCoding: true,
             mozjpeg: true,
             trellisQuantisation: true,
             overshootDeringing: true,
-            quantisationTable: 2, // More aggressive quantization
-            chromaSubsampling: '4:2:0' // Aggressive chroma subsampling
+            quantisationTable: 2,
+            chromaSubsampling: '4:2:0'
           })
           .toBuffer()
         outputFormat = 'jpeg'
       }
       
     } else if (compressionType === 'lossless') {
-      if (isOriginallyPNG) {
-        // Enhanced lossless PNG compression
+      if (originalFormat === 'png') {
+        // Lossless PNG compression
         compressedBuffer = await sharpInstance
           .png({ 
             compressionLevel: 9,
             adaptiveFiltering: true,
             quality: 100,
-            palette: hasTransparency ? false : true,
-            colors: hasTransparency ? 256 : 128 // Reduce color palette
+            palette: hasTransparency ? false : true
           })
           .toBuffer()
         outputFormat = 'png'
       } else {
-        // Lossless JPEG (minimal compression)
+        // Lossless JPEG
         compressedBuffer = await sharpInstance
           .jpeg({ 
-            quality: 85, // Lower than default for some compression
+            quality: 90,
             progressive: true,
             optimizeScans: true,
             optimizeCoding: true,
@@ -95,58 +112,54 @@ export async function POST(request) {
         outputFormat = 'jpeg'
       }
       
-    } else { // custom - Smart optimization like Compressor.io
-      if (isOriginallyPNG && hasTransparency) {
-        // Smart WebP conversion for transparent images
-        compressedBuffer = await sharpInstance
-          .resize({ 
-            width: Math.min(metadata.width, 1800),
-            height: Math.min(metadata.height, 1800),
-            fit: 'inside',
-            withoutEnlargement: true
-          })
-          .webp({ 
-            quality: quality,
-            effort: 6,
-            alphaQuality: quality,
-            smartSubsample: true,
-            reductionEffort: 6
-          })
-          .toBuffer()
-        outputFormat = 'webp'
-        
-      } else if (isOriginallyPNG && !hasTransparency) {
-        // Convert PNG to JPEG for massive savings (Compressor.io strategy)
-        compressedBuffer = await sharpInstance
-          .resize({ 
-            width: Math.min(metadata.width, 1800),
-            height: Math.min(metadata.height, 1800),
-            fit: 'inside',
-            withoutEnlargement: true
-          })
-          .flatten({ background: { r: 255, g: 255, b: 255 } })
-          .jpeg({ 
-            quality: quality,
-            progressive: true,
-            optimizeScans: true,
-            mozjpeg: true,
-            trellisQuantisation: true,
-            overshootDeringing: true
-          })
-          .toBuffer()
-        outputFormat = 'jpeg'
-        
+    } else { // custom
+      if (originalFormat === 'png') {
+        // Smart PNG compression based on transparency
+        if (hasTransparency) {
+          compressedBuffer = await sharpInstance
+            .resize({ 
+              width: Math.min(metadata.width, 1700),
+              height: Math.min(metadata.height, 1700),
+              fit: 'inside',
+              withoutEnlargement: true
+            })
+            .png({ 
+              compressionLevel: 9,
+              adaptiveFiltering: true,
+              quality: quality,
+              palette: false,
+              colors: Math.min(256, Math.max(128, quality * 2.5))
+            })
+            .toBuffer()
+        } else {
+          compressedBuffer = await sharpInstance
+            .resize({ 
+              width: Math.min(metadata.width, 1700),
+              height: Math.min(metadata.height, 1700),
+              fit: 'inside',
+              withoutEnlargement: true
+            })
+            .png({ 
+              compressionLevel: 9,
+              adaptiveFiltering: true,
+              quality: quality,
+              palette: true,
+              colors: Math.min(256, Math.max(64, quality * 2))
+            })
+            .toBuffer()
+        }
+        outputFormat = 'png'
       } else {
-        // Standard JPEG optimization
+        // Smart JPEG compression
         compressedBuffer = await sharpInstance
           .resize({ 
-            width: Math.min(metadata.width, 1800),
-            height: Math.min(metadata.height, 1800),
+            width: Math.min(metadata.width, 1700),
+            height: Math.min(metadata.height, 1700),
             fit: 'inside',
             withoutEnlargement: true
           })
           .jpeg({ 
-            quality: quality,
+            quality: Math.max(quality - 10, 25),
             progressive: true,
             optimizeScans: true,
             mozjpeg: true,
@@ -173,7 +186,7 @@ export async function POST(request) {
         'X-Compression-Ratio': compressionRatio,
         'X-Size-Saved-KB': sizeSavedKB,
         'X-Output-Format': outputFormat,
-        'Content-Disposition': `attachment; filename="compressed_${file.name.split('.')[0]}.${outputFormat}"`
+        'Content-Disposition': `attachment; filename="compressed_${file.name}"`
       }
     })
 
