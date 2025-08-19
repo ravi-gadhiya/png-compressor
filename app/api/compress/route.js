@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import sharp from 'sharp'
-import imagemin from 'imagemin'
-import imageminMozjpeg from 'imagemin-mozjpeg'
-import imageminPngquant from 'imagemin-pngquant'
-import imageminWebp from 'imagemin-webp'
 
 export async function POST(request) {
   try {
@@ -16,73 +12,58 @@ export async function POST(request) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
 
-    // Convert file to buffer
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
 
     let compressedBuffer
     let outputFormat = format
-
-    // Detect original format if auto
-    const metadata = await sharp(buffer).metadata()
+    
+    // Use Sharp only (works reliably on Vercel)
+    const sharpInstance = sharp(buffer)
+    const metadata = await sharpInstance.metadata()
+    
     if (format === 'auto') {
-      outputFormat = metadata.format
+      outputFormat = metadata.format === 'png' ? 'png' : 'jpeg'
     }
 
-    // Compress based on format
     switch (outputFormat) {
       case 'jpeg':
       case 'jpg':
-        // Use mozjpeg for superior JPEG compression
-        compressedBuffer = await imagemin.buffer(buffer, {
-          plugins: [
-            imageminMozjpeg({
-              quality: quality,
-              progressive: true,
-              optimize: true
-            })
-          ]
-        })
+        compressedBuffer = await sharpInstance
+          .jpeg({ 
+            quality: quality,
+            progressive: true,
+            optimizeScans: true
+          })
+          .toBuffer()
         break
 
       case 'png':
-        // Use pngquant for PNG compression
-        compressedBuffer = await imagemin.buffer(buffer, {
-          plugins: [
-            imageminPngquant({
-              quality: [quality / 100 - 0.1, quality / 100],
-              strip: true,
-              speed: 1
-            })
-          ]
-        })
+        compressedBuffer = await sharpInstance
+          .png({ 
+            quality: quality,
+            compressionLevel: 9,
+            adaptiveFiltering: true
+          })
+          .toBuffer()
         break
 
       case 'webp':
-        // Use Sharp for WebP (best compression)
-        compressedBuffer = await sharp(buffer)
+        compressedBuffer = await sharpInstance
           .webp({ 
             quality: quality,
-            effort: 6,
-            smartSubsample: true
+            effort: 6
           })
           .toBuffer()
         break
 
       default:
-        // Fallback: convert to JPEG
-        compressedBuffer = await sharp(buffer)
-          .jpeg({ 
-            quality: quality,
-            progressive: true,
-            optimizeScans: true,
-            mozjpeg: true
-          })
+        compressedBuffer = await sharpInstance
+          .jpeg({ quality: quality })
           .toBuffer()
         outputFormat = 'jpeg'
     }
 
-    // Calculate compression stats
     const originalSize = buffer.length
     const compressedSize = compressedBuffer.length
     const compressionRatio = ((originalSize - compressedSize) / originalSize * 100).toFixed(1)
@@ -101,6 +82,8 @@ export async function POST(request) {
 
   } catch (error) {
     console.error('Compression error:', error)
-    return NextResponse.json({ error: 'Compression failed' }, { status: 500 })
+    return NextResponse.json({ 
+      error: 'Compression failed: ' + error.message 
+    }, { status: 500 })
   }
 }
