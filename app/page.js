@@ -16,7 +16,7 @@ export default function Home() {
     { label: '40%', value: 40 },
     { label: '60%', value: 60 },
     { label: '80%', value: 80 },
-    { label: 'Max', value: 95 }
+    { label: 'Max', value: 100 }
   ]
 
   const handleFileSelect = (file) => {
@@ -198,7 +198,7 @@ export default function Home() {
                   <input
                     type="range"
                     min="10"
-                    max="95"
+                    max="100"
                     value={quality}
                     onChange={(e) => setQuality(parseInt(e.target.value))}
                     className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
