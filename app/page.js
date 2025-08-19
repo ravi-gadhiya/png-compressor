@@ -1,52 +1,31 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 
 export default function Home() {
-  const [selectedFiles, setSelectedFiles] = useState([])
-  const [compressedResults, setCompressedResults] = useState([])
+  const [selectedFile, setSelectedFile] = useState(null)
+  const [compressedBlob, setCompressedBlob] = useState(null)
   const [isCompressing, setIsCompressing] = useState(false)
+  const [compressionStats, setCompressionStats] = useState(null)
   const [isDragging, setIsDragging] = useState(false)
   const [quality, setQuality] = useState(80)
+  const [format, setFormat] = useState('auto')
   const [compressionType, setCompressionType] = useState('lossy')
-  const [totalStats, setTotalStats] = useState(null)
-  const fileInputRef = useRef(null)
 
   // Quality presets like Compressor.io
   const qualityPresets = [
-    { label: '20', value: 20 },
-    { label: '40', value: 40 },
-    { label: '60', value: 60 },
-    { label: '80', value: 80 },
-    { label: 'max', value: 95 }
+    { label: '20%', value: 20 },
+    { label: '40%', value: 40 },
+    { label: '60%', value: 60 },
+    { label: '80%', value: 80 },
+    { label: 'Max', value: 95 }
   ]
 
-  const compressionTypes = [
-    { 
-      id: 'lossy', 
-      label: 'Lossy', 
-      description: 'Best compression (60-95% smaller)',
-      icon: '🚀' 
-    },
-    { 
-      id: 'lossless', 
-      label: 'Lossless', 
-      description: 'Best quality (5-20% smaller)',
-      icon: '💎' 
-    },
-    { 
-      id: 'custom', 
-      label: 'Custom', 
-      description: 'Smart optimization',
-      icon: '⚡' 
+  const handleFileSelect = (file) => {
+    if (file && file.type.startsWith('image/')) {
+      setSelectedFile(file)
+      setCompressedBlob(null)
+      setCompressionStats(null)
     }
-  ]
-
-  const handleFileSelect = (files) => {
-    const fileArray = Array.from(files).slice(0, 10) // Limit to 10 files like Compressor.io
-    const validFiles = fileArray.filter(file => file.type.startsWith('image/'))
-    setSelectedFiles(validFiles)
-    setCompressedResults([])
-    setTotalStats(null)
   }
 
   const handleDragEnter = (e) => {
@@ -68,72 +47,43 @@ export default function Home() {
     setIsDragging(false)
     const files = e.dataTransfer.files
     if (files.length > 0) {
-      handleFileSelect(files)
+      handleFileSelect(files[0])
     }
   }
 
-  const compressImages = async () => {
-    if (selectedFiles.length === 0) return
+  const compressImage = async () => {
+    if (!selectedFile) return
     
     setIsCompressing(true)
-    const results = []
-    let totalOriginalSize = 0
-    let totalCompressedSize = 0
     
     try {
-      for (const file of selectedFiles) {
-        const formData = new FormData()
-        formData.append('file', file)
-        formData.append('quality', quality.toString())
-        formData.append('compressionType', compressionType)
+      const formData = new FormData()
+      formData.append('file', selectedFile)
+      formData.append('quality', quality.toString())
+      formData.append('format', format)
+      formData.append('compressionType', compressionType)
 
-        const response = await fetch('/api/compress', {
-          method: 'POST',
-          body: formData
-        })
+      const response = await fetch('/api/compress', {
+        method: 'POST',
+        body: formData
+      })
 
-        if (response.ok) {
-          const compressedBlob = await response.blob()
-          const originalSize = parseInt(response.headers.get('X-Original-Size'))
-          const compressedSize = parseInt(response.headers.get('X-Compressed-Size'))
-          const compressionRatio = response.headers.get('X-Compression-Ratio')
-          const sizeSavedKB = response.headers.get('X-Size-Saved-KB')
-          const outputFormat = response.headers.get('X-Output-Format')
-
-          results.push({
-            originalFile: file,
-            compressedBlob,
-            originalSize,
-            compressedSize,
-            compressionRatio,
-            sizeSavedKB,
-            outputFormat,
-            status: 'success'
-          })
-
-          totalOriginalSize += originalSize
-          totalCompressedSize += compressedSize
-        } else {
-          results.push({
-            originalFile: file,
-            status: 'error',
-            error: 'Compression failed'
-          })
-        }
+      if (!response.ok) {
+        throw new Error('Compression failed')
       }
 
-      setCompressedResults(results)
-      
-      // Calculate total stats
-      const totalReduction = ((totalOriginalSize - totalCompressedSize) / totalOriginalSize * 100).toFixed(1)
-      const totalSavedKB = ((totalOriginalSize - totalCompressedSize) / 1024).toFixed(0)
-      
-      setTotalStats({
-        originalSize: (totalOriginalSize / 1024 / 1024).toFixed(2),
-        compressedSize: (totalCompressedSize / 1024 / 1024).toFixed(2),
-        reduction: totalReduction,
-        savedKB: totalSavedKB,
-        filesProcessed: results.filter(r => r.status === 'success').length
+      const compressedBlob = await response.blob()
+      setCompressedBlob(compressedBlob)
+
+      // Get compression stats from headers
+      const originalSize = parseInt(response.headers.get('X-Original-Size'))
+      const compressedSize = parseInt(response.headers.get('X-Compressed-Size'))
+      const compressionRatio = response.headers.get('X-Compression-Ratio')
+
+      setCompressionStats({
+        original: (originalSize / 1024 / 1024).toFixed(2),
+        compressed: (compressedSize / 1024 / 1024).toFixed(2),
+        reduction: compressionRatio
       })
 
     } catch (error) {
@@ -144,130 +94,45 @@ export default function Home() {
     }
   }
 
-  const downloadFile = (result) => {
-    const url = URL.createObjectURL(result.compressedBlob)
+  const downloadCompressed = () => {
+    if (!compressedBlob) return
+    
+    const url = URL.createObjectURL(compressedBlob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `compressed_${result.originalFile.name.split('.')[0]}.${result.outputFormat}`
+    a.download = `compressed_${selectedFile.name}`
     a.click()
     URL.revokeObjectURL(url)
   }
 
-  const downloadAll = () => {
-    compressedResults.forEach(result => {
-      if (result.status === 'success') {
-        setTimeout(() => downloadFile(result), 100)
-      }
-    })
-  }
-
-  const clearList = () => {
-    setSelectedFiles([])
-    setCompressedResults([])
-    setTotalStats(null)
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
-  }
-
-  const formatFileSize = (bytes) => {
-    if (bytes === 0) return '0 Bytes'
-    const k = 1024
-    const sizes = ['Bytes', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+  const resetUpload = () => {
+    setSelectedFile(null)
+    setCompressedBlob(null)
+    setCompressionStats(null)
   }
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Fast & efficient image compression
+            Professional Image Compressor
           </h1>
-          <p className="text-lg text-gray-600">
-            Optimize <span className="font-semibold">JPEG, PNG, SVG, GIF</span> and <span className="font-semibold">WEBP</span>
+          <p className="text-gray-600">
+            Advanced compression using Sharp - up to 90% size reduction
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Left Panel - Controls */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Compression Type */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-semibold mb-4">Compression type</h3>
-              <div className="space-y-3">
-                {compressionTypes.map((type) => (
-                  <button
-                    key={type.id}
-                    onClick={() => setCompressionType(type.id)}
-                    className={`w-full p-3 rounded-lg border text-left transition-all ${
-                      compressionType === type.id
-                        ? 'bg-blue-50 border-blue-500 text-blue-700'
-                        : 'bg-white border-gray-300 hover:border-blue-300'
-                    }`}
-                  >
-                    <div className="flex items-center">
-                      <span className="text-lg mr-2">{type.icon}</span>
-                      <div>
-                        <div className="font-medium">{type.label}</div>
-                        <div className="text-xs text-gray-500">{type.description}</div>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Quality Settings */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-semibold mb-4">Image quality</h3>
-              
-              {/* Format-specific quality presets */}
-              <div className="mb-4">
-                <div className="text-sm font-medium mb-2">JPG:</div>
-                <div className="flex gap-1">
-                  {qualityPresets.map((preset) => (
-                    <button
-                      key={preset.value}
-                      onClick={() => setQuality(preset.value)}
-                      className={`px-3 py-1 text-sm rounded border ${
-                        quality === preset.value
-                          ? 'bg-blue-500 text-white border-blue-500'
-                          : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300'
-                      }`}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Custom Quality Slider */}
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Custom: <span className="font-bold text-blue-600">{quality}</span>
-                </label>
-                <input
-                  type="range"
-                  min="10"
-                  max="95"
-                  value={quality}
-                  onChange={(e) => setQuality(parseInt(e.target.value))}
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Main Content Area */}
-          <div className="lg:col-span-3 space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Upload & Settings */}
+          <div className="lg:col-span-2 space-y-6">
             {/* Upload Area */}
             <div className="bg-white rounded-lg shadow-md p-6">
               <div 
-                className={`border-2 border-dashed rounded-lg p-12 text-center transition-all ${
+                className={`border-2 border-dashed rounded-lg p-8 text-center transition-all ${
                   isDragging ? 'border-blue-500 bg-blue-50' : 
+                  selectedFile ? 'border-green-500 bg-green-50' : 
                   'border-gray-300 hover:border-blue-400'
                 }`}
                 onDragEnter={handleDragEnter}
@@ -276,141 +141,219 @@ export default function Home() {
                 onDrop={handleDrop}
               >
                 <input
-                  ref={fileInputRef}
                   type="file"
                   accept="image/*"
-                  multiple
-                  onChange={(e) => handleFileSelect(e.target.files)}
+                  onChange={(e) => handleFileSelect(e.target.files[0])}
                   className="hidden"
                   id="file-upload"
                 />
                 
-                <label htmlFor="file-upload" className="cursor-pointer block">
-                  <svg className="mx-auto h-16 w-16 mb-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                  </svg>
-                  <p className="text-xl font-semibold mb-2">
-                    {isDragging ? 'Drop your images here!' : 'drop your images or click to Browse'}
-                  </p>
-                  <p className="text-gray-500">
-                    compress jpg, png, gif, svg, webp. Max 10 MB.
-                  </p>
-                </label>
+                {!selectedFile ? (
+                  <label htmlFor="file-upload" className="cursor-pointer block">
+                    <svg className="mx-auto h-16 w-16 mb-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <p className="text-xl font-semibold mb-2">
+                      {isDragging ? 'Drop your images here!' : 'Drop your images or click to Browse'}
+                    </p>
+                    <p className="text-gray-500">
+                      compress jpg, png, gif, svg, webp. Max 10 MB.
+                    </p>
+                  </label>
+                ) : (
+                  <div className="space-y-3">
+                    <svg className="mx-auto h-16 w-16 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                      <p className="font-semibold">{selectedFile.name}</p>
+                      <p className="text-gray-500">
+                        {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                    </div>
+                    <button
+                      onClick={resetUpload}
+                      className="text-sm text-blue-600 hover:text-blue-700 underline"
+                    >
+                      Choose Different File
+                    </button>
+                  </div>
+                )}
               </div>
-
-              {/* Action Buttons */}
-              {selectedFiles.length > 0 && (
-                <div className="mt-6 flex gap-4">
-                  <button
-                    onClick={compressImages}
-                    disabled={isCompressing}
-                    className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-400 text-white font-bold py-3 px-6 rounded-lg transition-all duration-200 disabled:cursor-not-allowed"
-                  >
-                    {isCompressing ? 'Processing...' : `Compress ${selectedFiles.length} image${selectedFiles.length > 1 ? 's' : ''}`}
-                  </button>
-                  <button
-                    onClick={clearList}
-                    className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                  >
-                    Clear list
-                  </button>
-                </div>
-              )}
             </div>
 
-            {/* Results Table */}
-            {selectedFiles.length > 0 && (
-              <div className="bg-white rounded-lg shadow-md overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-200">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-semibold">Processing Results</h3>
-                    {compressedResults.length > 0 && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={downloadAll}
-                          className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium"
-                        >
-                          Download All
-                        </button>
+            {/* Advanced Controls - Like Compressor.io */}
+            {selectedFile && (
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <h3 className="text-lg font-semibold mb-4">Compression Settings</h3>
+                
+                {/* Compression Type */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium mb-3">Compression Type</label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setCompressionType('lossy')}
+                      className={`px-4 py-2 rounded-lg border font-medium flex-1 ${
+                        compressionType === 'lossy'
+                          ? 'bg-blue-500 text-white border-blue-500'
+                          : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300'
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div className="font-semibold">Lossy</div>
+                        <div className="text-xs opacity-75">Best compression</div>
                       </div>
-                    )}
+                    </button>
+                    <button
+                      onClick={() => setCompressionType('lossless')}
+                      className={`px-4 py-2 rounded-lg border font-medium flex-1 ${
+                        compressionType === 'lossless'
+                          ? 'bg-blue-500 text-white border-blue-500'
+                          : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300'
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div className="font-semibold">Lossless</div>
+                        <div className="text-xs opacity-75">Best quality</div>
+                      </div>
+                    </button>
                   </div>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Before</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">After</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {selectedFiles.map((file, index) => {
-                        const result = compressedResults.find(r => r.originalFile === file)
-                        return (
-                          <tr key={index}>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {file.name}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {formatFileSize(file.size)}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              {!result ? (
-                                <span className="text-sm text-gray-500">Waiting...</span>
-                              ) : result.status === 'success' ? (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                  -{result.compressionRatio}%
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                  Error
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {result?.status === 'success' ? formatFileSize(result.compressedSize) : '-'}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm">
-                              {result?.status === 'success' ? (
-                                <button
-                                  onClick={() => downloadFile(result)}
-                                  className="text-blue-600 hover:text-blue-800 font-medium"
-                                >
-                                  Download
-                                </button>
-                              ) : (
-                                '-'
-                              )}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
+                {/* Quality Presets */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-3">Image Quality</label>
+                  <div className="grid grid-cols-5 gap-2 mb-4">
+                    {qualityPresets.map((preset) => (
+                      <button
+                        key={preset.value}
+                        onClick={() => setQuality(preset.value)}
+                        className={`px-3 py-2 rounded-lg border font-medium text-sm ${
+                          quality === preset.value
+                            ? 'bg-blue-500 text-white border-blue-500'
+                            : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
 
-            {/* Total Stats */}
-            {totalStats && (
-              <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg shadow-md p-6">
-                <div className="text-center">
-                  <h3 className="text-xl font-semibold mb-2">
-                    🎉 Saved: {totalStats.savedKB} KB ({totalStats.reduction}% reduction)
-                  </h3>
-                  <p className="text-green-100">
-                    {totalStats.filesProcessed} image{totalStats.filesProcessed > 1 ? 's' : ''} processed • 
-                    {totalStats.originalSize} MB → {totalStats.compressedSize} MB
-                  </p>
+                {/* Custom Quality Slider */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-2">
+                    Custom Quality: <span className="font-bold text-blue-600">{quality}%</span>
+                  </label>
+                  <input
+                    type="range"
+                    min="10"
+                    max="95"
+                    value={quality}
+                    onChange={(e) => setQuality(parseInt(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>Smaller</span>
+                    <span>Better Quality</span>
+                  </div>
                 </div>
+
+                {/* Format Selection */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium mb-2">Output Format</label>
+                  <select
+                    value={format}
+                    onChange={(e) => setFormat(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="auto">🔄 Auto (Keep Original)</option>
+                    <option value="jpeg">📷 JPEG (Best for photos)</option>
+                    <option value="png">🖼️ PNG (Best for graphics)</option>
+                    <option value="webp">⚡ WebP (Best compression)</option>
+                  </select>
+                </div>
+
+                {/* Compress Button */}
+                <button
+                  onClick={compressImage}
+                  disabled={isCompressing}
+                  className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-400 text-white font-bold py-4 px-6 rounded-lg transition-all duration-200 disabled:cursor-not-allowed shadow-lg"
+                >
+                  {isCompressing ? (
+                    <span className="flex items-center justify-center">
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Processing...
+                    </span>
+                  ) : (
+                    '🚀 Compress Image'
+                  )}
+                </button>
               </div>
             )}
           </div>
+
+          {/* Results Panel */}
+          {compressionStats && (
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h3 className="text-lg font-semibold mb-4 flex items-center">
+                ✨ Results
+                <span className="ml-2 text-sm bg-green-100 text-green-800 px-2 py-1 rounded">
+                  {compressionStats.reduction}% saved
+                </span>
+              </h3>
+              
+              <div className="space-y-4">
+                <div className="text-center p-4 bg-red-50 rounded-lg border border-red-200">
+                  <p className="text-2xl font-bold text-red-600">{compressionStats.original} MB</p>
+                  <p className="text-sm text-gray-600">Original Size</p>
+                </div>
+                
+                <div className="flex items-center justify-center">
+                  <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                  </svg>
+                </div>
+                
+                <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
+                  <p className="text-2xl font-bold text-green-600">{compressionStats.compressed} MB</p>
+                  <p className="text-sm text-gray-600">Compressed Size</p>
+                </div>
+                
+                <div className="text-center p-3 bg-blue-50 rounded-lg">
+                  <p className="text-lg font-bold text-blue-600">
+                    💾 {((parseFloat(compressionStats.original) - parseFloat(compressionStats.compressed)) * 1024).toFixed(0)} KB saved
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3 mt-6">
+                <button
+                  onClick={downloadCompressed}
+                  className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-3 px-6 rounded-lg transition-all duration-200 shadow-lg"
+                >
+                  📥 Download Compressed Image
+                </button>
+                
+                <button
+                  onClick={resetUpload}
+                  className="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg transition-colors"
+                >
+                  🔄 Compress Another Image
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Info Section */}
+        <div className="mt-12 text-center text-gray-500 text-sm">
+          <p>
+            🔒 Your images are processed securely and never stored on our servers
+          </p>
         </div>
       </div>
     </div>
