@@ -8,7 +8,7 @@ export default function Home() {
   const [compressionStats, setCompressionStats] = useState(null)
   const [isDragging, setIsDragging] = useState(false)
   const [quality, setQuality] = useState(80)
-  const [format, setFormat] = useState('auto')
+  const [format, setFormat] = useState('webp')
 
   // Quality presets like Compressor.io
   const qualityPresets = [
