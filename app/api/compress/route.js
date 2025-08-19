@@ -7,7 +7,6 @@ export async function POST(request) {
     const file = formData.get('file')
     const quality = parseInt(formData.get('quality')) || 80
     const format = formData.get('format') || 'auto'
-    const compressionType = formData.get('compressionType') || 'lossy'
     
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
@@ -19,6 +18,7 @@ export async function POST(request) {
     let compressedBuffer
     let outputFormat = format
     
+    // Use Sharp only (works reliably on Vercel)
     const sharpInstance = sharp(buffer)
     const metadata = await sharpInstance.metadata()
     
@@ -26,84 +26,33 @@ export async function POST(request) {
       outputFormat = metadata.format === 'png' ? 'png' : 'jpeg'
     }
 
-    // Enhanced compression algorithms like Compressor.io
     switch (outputFormat) {
       case 'jpeg':
       case 'jpg':
-        if (compressionType === 'lossless') {
-          compressedBuffer = await sharpInstance
-            .jpeg({ 
-              quality: 95,
-              progressive: true,
-              optimizeScans: true,
-              optimizeCoding: true,
-              mozjpeg: true
-            })
-            .toBuffer()
-        } else {
-          // Aggressive lossy compression like Compressor.io
-          compressedBuffer = await sharpInstance
-            .resize({ 
-              width: Math.min(metadata.width, 1920),
-              height: Math.min(metadata.height, 1920),
-              fit: 'inside',
-              withoutEnlargement: true
-            })
-            .jpeg({ 
-              quality: Math.max(quality - 10, 20), // More aggressive
-              progressive: true,
-              optimizeScans: true,
-              optimizeCoding: true,
-              mozjpeg: true,
-              trellisQuantisation: true,
-              overshootDeringing: true
-            })
-            .toBuffer()
-        }
+        compressedBuffer = await sharpInstance
+          .jpeg({ 
+            quality: quality,
+            progressive: true,
+            optimizeScans: true
+          })
+          .toBuffer()
         break
 
       case 'png':
-        if (compressionType === 'lossless') {
-          compressedBuffer = await sharpInstance
-            .png({ 
-              compressionLevel: 9,
-              adaptiveFiltering: true,
-              palette: true
-            })
-            .toBuffer()
-        } else {
-          // Convert PNG to JPEG for better compression (like Compressor.io does)
-          compressedBuffer = await sharpInstance
-            .resize({ 
-              width: Math.min(metadata.width, 1920),
-              height: Math.min(metadata.height, 1920),
-              fit: 'inside',
-              withoutEnlargement: true
-            })
-            .jpeg({ 
-              quality: quality,
-              progressive: true,
-              optimizeScans: true,
-              mozjpeg: true
-            })
-            .toBuffer()
-          outputFormat = 'jpeg'
-        }
+        compressedBuffer = await sharpInstance
+          .png({ 
+            quality: quality,
+            compressionLevel: 9,
+            adaptiveFiltering: true
+          })
+          .toBuffer()
         break
 
       case 'webp':
         compressedBuffer = await sharpInstance
-          .resize({ 
-            width: Math.min(metadata.width, 1920),
-            height: Math.min(metadata.height, 1920),
-            fit: 'inside',
-            withoutEnlargement: true
-          })
           .webp({ 
             quality: quality,
-            effort: 6,
-            smartSubsample: true,
-            reductionEffort: 6
+            effort: 6
           })
           .toBuffer()
         break
