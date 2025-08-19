@@ -7,7 +7,7 @@ export default function Home() {
   const [isCompressing, setIsCompressing] = useState(false)
   const [compressionStats, setCompressionStats] = useState(null)
   const [isDragging, setIsDragging] = useState(false)
-  const [quality, setQuality] = useState(80)
+  const [quality, setQuality] = useState(100)
   const [format, setFormat] = useState('webp')
 
   // Quality presets like Compressor.io
@@ -145,7 +145,7 @@ export default function Home() {
                     <svg className="mx-auto h-16 w-16 mb-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                     </svg>
-                    <p className="text-xl font-semibold mb-2">
+                    <p className="text-xl font-semibold mb-2 text-gray-900">
                       {isDragging ? 'Drop your images here!' : 'Drop your images or click to Browse'}
                     </p>
                     <p className="text-gray-500">
@@ -171,7 +171,7 @@ export default function Home() {
             {/* Quality Controls - Like Compressor.io */}
             {selectedFile && (
               <div className="bg-white rounded-lg shadow-md p-6">
-                <h3 className="text-lg font-semibold mb-4">Image Quality</h3>
+                <h3 className="text-lg font-semibold mb-4 text-gray-900">Image Quality</h3>
                 
                 {/* Quality Presets */}
                 <div className="flex flex-wrap gap-2 mb-4">
@@ -192,7 +192,7 @@ export default function Home() {
 
                 {/* Custom Quality Slider */}
                 <div className="mb-4">
-                  <label className="block text-sm font-medium mb-2">
+                  <label className="block text-sm font-medium mb-2 text-gray-900">
                     Custom Quality: {quality}%
                   </label>
                   <input
@@ -207,11 +207,11 @@ export default function Home() {
 
                 {/* Format Selection */}
                 <div className="mb-6">
-                  <label className="block text-sm font-medium mb-2">Output Format</label>
+                  <label className="block text-sm font-medium mb-2 text-gray-900">Output Format</label>
                   <select
                     value={format}
                     onChange={(e) => setFormat(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full p-2 border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="auto">Auto (Keep Original)</option>
                     <option value="jpeg">JPEG</option>
@@ -245,7 +245,7 @@ export default function Home() {
           {/* Results Panel */}
           {compressionStats && (
             <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-semibold mb-4">✨ Results</h3>
+              <h3 className="text-lg font-semibold mb-4 text-gray-900">✨ Results</h3>
               
               <div className="space-y-4">
                 <div className="text-center p-4 bg-gray-50 rounded-lg">
