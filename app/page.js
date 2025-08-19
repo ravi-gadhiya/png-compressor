@@ -9,6 +9,7 @@ export default function Home() {
   const [isDragging, setIsDragging] = useState(false)
   const [quality, setQuality] = useState(80)
   const [format, setFormat] = useState('auto')
+  const [compressionType, setCompressionType] = useState('lossy')
 
   // Quality presets like Compressor.io
   const qualityPresets = [
@@ -60,6 +61,7 @@ export default function Home() {
       formData.append('file', selectedFile)
       formData.append('quality', quality.toString())
       formData.append('format', format)
+      formData.append('compressionType', compressionType)
 
       const response = await fetch('/api/compress', {
         method: 'POST',
@@ -103,6 +105,12 @@ export default function Home() {
     URL.revokeObjectURL(url)
   }
 
+  const resetUpload = () => {
+    setSelectedFile(null)
+    setCompressedBlob(null)
+    setCompressionStats(null)
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-4xl mx-auto">
@@ -112,7 +120,7 @@ export default function Home() {
             Professional Image Compressor
           </h1>
           <p className="text-gray-600">
-            Advanced compression using Sharp & ImageMin - up to 80% size reduction
+            Advanced compression using Sharp - up to 90% size reduction
           </p>
         </div>
 
@@ -163,37 +171,79 @@ export default function Home() {
                         {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
                       </p>
                     </div>
+                    <button
+                      onClick={resetUpload}
+                      className="text-sm text-blue-600 hover:text-blue-700 underline"
+                    >
+                      Choose Different File
+                    </button>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Quality Controls - Like Compressor.io */}
+            {/* Advanced Controls - Like Compressor.io */}
             {selectedFile && (
               <div className="bg-white rounded-lg shadow-md p-6">
-                <h3 className="text-lg font-semibold mb-4">Image Quality</h3>
+                <h3 className="text-lg font-semibold mb-4">Compression Settings</h3>
                 
-                {/* Quality Presets */}
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {qualityPresets.map((preset) => (
+                {/* Compression Type */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium mb-3">Compression Type</label>
+                  <div className="flex gap-2">
                     <button
-                      key={preset.value}
-                      onClick={() => setQuality(preset.value)}
-                      className={`px-4 py-2 rounded-lg border font-medium ${
-                        quality === preset.value
+                      onClick={() => setCompressionType('lossy')}
+                      className={`px-4 py-2 rounded-lg border font-medium flex-1 ${
+                        compressionType === 'lossy'
                           ? 'bg-blue-500 text-white border-blue-500'
                           : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300'
                       }`}
                     >
-                      {preset.label}
+                      <div className="text-center">
+                        <div className="font-semibold">Lossy</div>
+                        <div className="text-xs opacity-75">Best compression</div>
+                      </div>
                     </button>
-                  ))}
+                    <button
+                      onClick={() => setCompressionType('lossless')}
+                      className={`px-4 py-2 rounded-lg border font-medium flex-1 ${
+                        compressionType === 'lossless'
+                          ? 'bg-blue-500 text-white border-blue-500'
+                          : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300'
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div className="font-semibold">Lossless</div>
+                        <div className="text-xs opacity-75">Best quality</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Quality Presets */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-3">Image Quality</label>
+                  <div className="grid grid-cols-5 gap-2 mb-4">
+                    {qualityPresets.map((preset) => (
+                      <button
+                        key={preset.value}
+                        onClick={() => setQuality(preset.value)}
+                        className={`px-3 py-2 rounded-lg border font-medium text-sm ${
+                          quality === preset.value
+                            ? 'bg-blue-500 text-white border-blue-500'
+                            : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Custom Quality Slider */}
                 <div className="mb-4">
                   <label className="block text-sm font-medium mb-2">
-                    Custom Quality: {quality}%
+                    Custom Quality: <span className="font-bold text-blue-600">{quality}%</span>
                   </label>
                   <input
                     type="range"
@@ -201,8 +251,12 @@ export default function Home() {
                     max="95"
                     value={quality}
                     onChange={(e) => setQuality(parseInt(e.target.value))}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
                   />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>Smaller</span>
+                    <span>Better Quality</span>
+                  </div>
                 </div>
 
                 {/* Format Selection */}
@@ -211,12 +265,12 @@ export default function Home() {
                   <select
                     value={format}
                     onChange={(e) => setFormat(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
-                    <option value="auto">Auto (Keep Original)</option>
-                    <option value="jpeg">JPEG</option>
-                    <option value="png">PNG</option>
-                    <option value="webp">WebP (Best Compression)</option>
+                    <option value="auto">🔄 Auto (Keep Original)</option>
+                    <option value="jpeg">📷 JPEG (Best for photos)</option>
+                    <option value="png">🖼️ PNG (Best for graphics)</option>
+                    <option value="webp">⚡ WebP (Best compression)</option>
                   </select>
                 </div>
 
@@ -224,7 +278,7 @@ export default function Home() {
                 <button
                   onClick={compressImage}
                   disabled={isCompressing}
-                  className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white font-bold py-3 px-6 rounded-lg transition-colors disabled:cursor-not-allowed"
+                  className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-400 text-white font-bold py-4 px-6 rounded-lg transition-all duration-200 disabled:cursor-not-allowed shadow-lg"
                 >
                   {isCompressing ? (
                     <span className="flex items-center justify-center">
@@ -235,7 +289,7 @@ export default function Home() {
                       Processing...
                     </span>
                   ) : (
-                    'Compress Image'
+                    '🚀 Compress Image'
                   )}
                 </button>
               </div>
@@ -245,33 +299,61 @@ export default function Home() {
           {/* Results Panel */}
           {compressionStats && (
             <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-semibold mb-4">✨ Results</h3>
+              <h3 className="text-lg font-semibold mb-4 flex items-center">
+                ✨ Results
+                <span className="ml-2 text-sm bg-green-100 text-green-800 px-2 py-1 rounded">
+                  {compressionStats.reduction}% saved
+                </span>
+              </h3>
               
               <div className="space-y-4">
-                <div className="text-center p-4 bg-gray-50 rounded-lg">
-                  <p className="text-3xl font-bold text-red-600">{compressionStats.original} MB</p>
-                  <p className="text-sm text-gray-500">Before</p>
+                <div className="text-center p-4 bg-red-50 rounded-lg border border-red-200">
+                  <p className="text-2xl font-bold text-red-600">{compressionStats.original} MB</p>
+                  <p className="text-sm text-gray-600">Original Size</p>
                 </div>
                 
-                <div className="text-center p-4 bg-green-50 rounded-lg">
-                  <p className="text-3xl font-bold text-green-600">{compressionStats.compressed} MB</p>
-                  <p className="text-sm text-gray-500">After</p>
+                <div className="flex items-center justify-center">
+                  <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                  </svg>
                 </div>
                 
-                <div className="text-center p-4 bg-blue-50 rounded-lg">
-                  <p className="text-3xl font-bold text-blue-600">{compressionStats.reduction}%</p>
-                  <p className="text-sm text-gray-500">Saved</p>
+                <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
+                  <p className="text-2xl font-bold text-green-600">{compressionStats.compressed} MB</p>
+                  <p className="text-sm text-gray-600">Compressed Size</p>
+                </div>
+                
+                <div className="text-center p-3 bg-blue-50 rounded-lg">
+                  <p className="text-lg font-bold text-blue-600">
+                    💾 {((parseFloat(compressionStats.original) - parseFloat(compressionStats.compressed)) * 1024).toFixed(0)} KB saved
+                  </p>
                 </div>
               </div>
 
-              <button
-                onClick={downloadCompressed}
-                className="w-full mt-6 bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg transition-colors"
-              >
-                📥 Download
-              </button>
+              <div className="space-y-3 mt-6">
+                <button
+                  onClick={downloadCompressed}
+                  className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-3 px-6 rounded-lg transition-all duration-200 shadow-lg"
+                >
+                  📥 Download Compressed Image
+                </button>
+                
+                <button
+                  onClick={resetUpload}
+                  className="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg transition-colors"
+                >
+                  🔄 Compress Another Image
+                </button>
+              </div>
             </div>
           )}
+        </div>
+
+        {/* Info Section */}
+        <div className="mt-12 text-center text-gray-500 text-sm">
+          <p>
+            🔒 Your images are processed securely and never stored on our servers
+          </p>
         </div>
       </div>
     </div>
