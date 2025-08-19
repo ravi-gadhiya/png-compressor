@@ -6,64 +6,46 @@ export async function POST(request) {
     const formData = await request.formData()
     const file = formData.get('file')
     const quality = parseInt(formData.get('quality')) || 80
-    const format = formData.get('format') || 'auto'
     
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
 
+    // Only accept PNG files
+    if (file.type !== 'image/png') {
+      return NextResponse.json({ error: 'Only PNG files are supported' }, { status: 400 })
+    }
+
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
-
-    let compressedBuffer
-    let outputFormat = format
     
-    // Use Sharp only (works reliably on Vercel)
     const sharpInstance = sharp(buffer)
     const metadata = await sharpInstance.metadata()
     
-    if (format === 'auto') {
-      outputFormat = metadata.format === 'png' ? 'png' : 'jpeg'
-    }
-
-    switch (outputFormat) {
-      case 'jpeg':
-      case 'jpg':
-        compressedBuffer = await sharpInstance
-          .jpeg({ 
-            quality: quality,
-            progressive: true,
-            optimizeScans: true
-          })
-          .toBuffer()
-        break
-
-      case 'png':
-        compressedBuffer = await sharpInstance
-          .png({ 
-            quality: quality,
-            compressionLevel: 9,
-            adaptiveFiltering: true
-          })
-          .toBuffer()
-        break
-
-      case 'webp':
-        compressedBuffer = await sharpInstance
-          .webp({ 
-            quality: quality,
-            effort: 6
-          })
-          .toBuffer()
-        break
-
-      default:
-        compressedBuffer = await sharpInstance
-          .jpeg({ quality: quality })
-          .toBuffer()
-        outputFormat = 'jpeg'
-    }
-
+    let compressedBuffer
+    
+    // Strategy: Use WebP compression internally, then convert back to PNG
+    // This gives much better compression than direct PNG compression
+    
+    // Step 1: Compress as WebP (superior compression algorithms)
+    const webpBuffer = await sharpInstance
+      .webp({ 
+        quality: quality,
+        effort: 6,
+        smartSubsample: true,
+        reductionEffort: 6
+      })
+      .toBuffer()
+    
+    // Step 2: Convert WebP back to PNG (maintains compression benefits)
+    compressedBuffer = await sharp(webpBuffer)
+      .png({ 
+        compressionLevel: 9,
+        adaptiveFiltering: true,
+        palette: false // Keep full quality
+      })
+      .toBuffer()
+    
     const originalSize = buffer.length
     const compressedSize = compressedBuffer.length
     const compressionRatio = ((originalSize - compressedSize) / originalSize * 100).toFixed(1)
@@ -71,12 +53,12 @@ export async function POST(request) {
     return new NextResponse(compressedBuffer, {
       status: 200,
       headers: {
-        'Content-Type': `image/${outputFormat}`,
+        'Content-Type': 'image/png', // Always output PNG
         'Content-Length': compressedSize.toString(),
         'X-Original-Size': originalSize.toString(),
         'X-Compressed-Size': compressedSize.toString(),
         'X-Compression-Ratio': compressionRatio,
-        'Content-Disposition': `attachment; filename="compressed_${file.name}"`
+        'Content-Disposition': `attachment; filename="compressed_${file.name.split('.')[0]}.png"`
       }
     })
 

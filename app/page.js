@@ -8,7 +8,6 @@ export default function Home() {
   const [compressionStats, setCompressionStats] = useState(null)
   const [isDragging, setIsDragging] = useState(false)
   const [quality, setQuality] = useState(100)
-  const [format, setFormat] = useState('webp')
 
   // Quality presets like Compressor.io
   const qualityPresets = [
@@ -20,10 +19,13 @@ export default function Home() {
   ]
 
   const handleFileSelect = (file) => {
-    if (file && file.type.startsWith('image/')) {
+    // Only accept PNG files
+    if (file && file.type === 'image/png') {
       setSelectedFile(file)
       setCompressedBlob(null)
       setCompressionStats(null)
+    } else if (file) {
+      alert('Please select a PNG file only.')
     }
   }
 
@@ -59,7 +61,6 @@ export default function Home() {
       const formData = new FormData()
       formData.append('file', selectedFile)
       formData.append('quality', quality.toString())
-      formData.append('format', format)
 
       const response = await fetch('/api/compress', {
         method: 'POST',
@@ -109,91 +110,97 @@ export default function Home() {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Professional Image Compressor
+            PNG Super Compressor
           </h1>
-          <p className="text-gray-600">
-            Advanced compression using Sharp & ImageMin - up to 80% size reduction
+          <p className="text-lg text-gray-600">
+            Advanced PNG compression - up to 80% size reduction
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Upload & Settings */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Upload Area */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <div 
-                className={`border-2 border-dashed rounded-lg p-8 text-center transition-all ${
-                  isDragging ? 'border-blue-500 bg-blue-50' : 
-                  selectedFile ? 'border-green-500 bg-green-50' : 
-                  'border-gray-300 hover:border-blue-400'
-                }`}
-                onDragEnter={handleDragEnter}
-                onDragLeave={handleDragLeave}
-                onDragOver={handleDragOver}
-                onDrop={handleDrop}
-              >
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleFileSelect(e.target.files[0])}
-                  className="hidden"
-                  id="file-upload"
-                />
-                
-                {!selectedFile ? (
-                  <label htmlFor="file-upload" className="cursor-pointer block">
-                    <svg className="mx-auto h-16 w-16 mb-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                    <p className="text-xl font-semibold mb-2 text-gray-900">
-                      {isDragging ? 'Drop your images here!' : 'Drop your images or click to Browse'}
-                    </p>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Upload Area */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div 
+              className={`border-2 border-dashed rounded-lg p-12 text-center transition-all ${
+                isDragging ? 'border-blue-500 bg-blue-50' : 
+                selectedFile ? 'border-green-500 bg-green-50' : 
+                'border-gray-300 hover:border-blue-400'
+              }`}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+            >
+              <input
+                type="file"
+                accept="image/png"
+                onChange={(e) => handleFileSelect(e.target.files[0])}
+                className="hidden"
+                id="file-upload"
+              />
+              
+              {!selectedFile ? (
+                <label htmlFor="file-upload" className="cursor-pointer block">
+                  <svg className="mx-auto h-16 w-16 mb-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  <p className="text-xl font-semibold mb-2">
+                    {isDragging ? 'Drop your PNG here!' : 'Drop your PNG or click to Browse'}
+                  </p>
+                  <p className="text-gray-500">
+                    PNG files only. Max 10 MB.
+                  </p>
+                </label>
+              ) : (
+                <div className="space-y-3">
+                  <svg className="mx-auto h-16 w-16 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div>
+                    <p className="font-semibold">{selectedFile.name}</p>
                     <p className="text-gray-500">
-                      compress jpg, png, gif, svg, webp. Max 10 MB.
+                      {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
                     </p>
-                  </label>
-                ) : (
-                  <div className="space-y-3">
-                    <svg className="mx-auto h-16 w-16 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <div>
-                      <p className="font-semibold">{selectedFile.name}</p>
-                      <p className="text-gray-500">
-                        {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                      </p>
-                    </div>
                   </div>
-                )}
-              </div>
+                  <button
+                    onClick={() => setSelectedFile(null)}
+                    className="text-sm text-blue-600 hover:text-blue-700 underline"
+                  >
+                    Choose Different File
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* Quality Controls - Like Compressor.io */}
+            {/* Quality Controls */}
             {selectedFile && (
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <h3 className="text-lg font-semibold mb-4 text-gray-900">Image Quality</h3>
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold mb-4">Compression Settings</h3>
                 
                 {/* Quality Presets */}
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {qualityPresets.map((preset) => (
-                    <button
-                      key={preset.value}
-                      onClick={() => setQuality(preset.value)}
-                      className={`px-4 py-2 rounded-lg border font-medium ${
-                        quality === preset.value
-                          ? 'bg-blue-500 text-white border-blue-500'
-                          : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300'
-                      }`}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-3">PNG Quality</label>
+                  <div className="grid grid-cols-5 gap-2 mb-4">
+                    {qualityPresets.map((preset) => (
+                      <button
+                        key={preset.value}
+                        onClick={() => setQuality(preset.value)}
+                        className={`px-3 py-2 rounded-lg border font-medium text-sm ${
+                          quality === preset.value
+                            ? 'bg-blue-500 text-white border-blue-500'
+                            : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Custom Quality Slider */}
                 <div className="mb-4">
-                  <label className="block text-sm font-medium mb-2 text-gray-900">
-                    Custom Quality: {quality}%
+                  <label className="block text-sm font-medium mb-2">
+                    Custom Quality: <span className="font-bold text-blue-600">{quality}%</span>
                   </label>
                   <input
                     type="range"
@@ -203,28 +210,17 @@ export default function Home() {
                     onChange={(e) => setQuality(parseInt(e.target.value))}
                     className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                   />
-                </div>
-
-                {/* Format Selection */}
-                <div className="mb-6">
-                  <label className="block text-sm font-medium mb-2 text-gray-900">Output Format</label>
-                  <select
-                    value={format}
-                    onChange={(e) => setFormat(e.target.value)}
-                    className="w-full p-2 border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="auto">Auto (Keep Original)</option>
-                    <option value="jpeg">JPEG</option>
-                    <option value="png">PNG</option>
-                    <option value="webp">WebP (Best Compression)</option>
-                  </select>
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>Smaller Size</span>
+                    <span>Better Quality</span>
+                  </div>
                 </div>
 
                 {/* Compress Button */}
                 <button
                   onClick={compressImage}
                   disabled={isCompressing}
-                  className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white font-bold py-3 px-6 rounded-lg transition-colors disabled:cursor-not-allowed"
+                  className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-400 text-white font-bold py-4 px-6 rounded-lg transition-all duration-200 disabled:cursor-not-allowed shadow-lg"
                 >
                   {isCompressing ? (
                     <span className="flex items-center justify-center">
@@ -232,10 +228,10 @@ export default function Home() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
-                      Processing...
+                      Processing PNG...
                     </span>
                   ) : (
-                    'Compress Image'
+                    '🚀 Compress PNG'
                   )}
                 </button>
               </div>
@@ -245,33 +241,65 @@ export default function Home() {
           {/* Results Panel */}
           {compressionStats && (
             <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-semibold mb-4 text-gray-900">✨ Results</h3>
+              <h3 className="text-lg font-semibold mb-4 flex items-center">
+                ✨ Compression Results
+                <span className="ml-2 text-sm bg-green-100 text-green-800 px-2 py-1 rounded">
+                  {compressionStats.reduction}% smaller
+                </span>
+              </h3>
               
               <div className="space-y-4">
-                <div className="text-center p-4 bg-gray-50 rounded-lg">
-                  <p className="text-3xl font-bold text-red-600">{compressionStats.original} MB</p>
-                  <p className="text-sm text-gray-500">Before</p>
+                <div className="text-center p-4 bg-red-50 rounded-lg border border-red-200">
+                  <p className="text-2xl font-bold text-red-600">{compressionStats.original} MB</p>
+                  <p className="text-sm text-gray-600">Original Size</p>
                 </div>
                 
-                <div className="text-center p-4 bg-green-50 rounded-lg">
-                  <p className="text-3xl font-bold text-green-600">{compressionStats.compressed} MB</p>
-                  <p className="text-sm text-gray-500">After</p>
+                <div className="flex items-center justify-center">
+                  <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                  </svg>
                 </div>
                 
-                <div className="text-center p-4 bg-blue-50 rounded-lg">
-                  <p className="text-3xl font-bold text-blue-600">{compressionStats.reduction}%</p>
-                  <p className="text-sm text-gray-500">Saved</p>
+                <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
+                  <p className="text-2xl font-bold text-green-600">{compressionStats.compressed} MB</p>
+                  <p className="text-sm text-gray-600">Compressed Size</p>
+                </div>
+                
+                <div className="text-center p-3 bg-blue-50 rounded-lg">
+                  <p className="text-lg font-bold text-blue-600">
+                    💾 {((parseFloat(compressionStats.original) - parseFloat(compressionStats.compressed)) * 1024).toFixed(0)} KB saved
+                  </p>
                 </div>
               </div>
 
-              <button
-                onClick={downloadCompressed}
-                className="w-full mt-6 bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg transition-colors"
-              >
-                📥 Download
-              </button>
+              <div className="space-y-3 mt-6">
+                <button
+                  onClick={downloadCompressed}
+                  className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-3 px-6 rounded-lg transition-all duration-200 shadow-lg"
+                >
+                  📥 Download Compressed PNG
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setSelectedFile(null)
+                    setCompressedBlob(null)
+                    setCompressionStats(null)
+                  }}
+                  className="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg transition-colors"
+                >
+                  🔄 Compress Another PNG
+                </button>
+              </div>
             </div>
           )}
+        </div>
+
+        {/* Info Section */}
+        <div className="mt-12 text-center text-gray-500 text-sm">
+          <p>
+            🔒 Your PNG images are processed securely using advanced WebP algorithms and output as optimized PNG files
+          </p>
         </div>
       </div>
     </div>
